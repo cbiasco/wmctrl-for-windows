@@ -9,24 +9,26 @@ The program is written in C-sharp.
 This repository contains the latest binary and the source code (compatible Mono or Microsoft).
 
 ## Binaries
-The latest binary is available [here](https://github.com/elmanuelito/wmctrl-for-windows/raw/master/_bin/wmctrl.exe)
+The latest binary is available [here](https://github.com/cbiasco/wmctrl-for-windows/raw/master/_bin/win_wmctrl.exe)
 
 ## Features/ usage
 Typical example:
 ```bash
 # Jump to google chrome window
-wmctrl -a chrome
+win_wmctrl -a chrome
 ```
    
    
 Usage:
 ```bash
-wmctrl [options] [args]
+win_wmctrl [options] [args]
 
 options:
-  -h         : show this help
-  -l         : list windows
-  -a <PNAME> : switch to the window of the process name <PNAME>
+  -h                 : show this help
+  -l <opt:PNAME>     : list processes, or windows if a process name is given
+  -a <PNAME>         : switch to the window of the process name <PNAME>
+  -ia <HWND>         : switch to the window of the window handle <HWND>
+  -p <PNAME> <WNAME> : write the window handle of the process name and window name pair to stdout
 ```
 
 
