@@ -1,19 +1,50 @@
 using System; // For IntPtr
 using System.Runtime.InteropServices; // DllImport
 using System.Diagnostics; // Process
+using System.Collections.Generic; // IEnumerable
+using System.Text; // StringBuilder
 
 public class wmctrl
 {
+    delegate bool EnumThreadDelegate(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    static extern bool EnumThreadWindows(int dwThreadId, EnumThreadDelegate lpfn,
+					 IntPtr lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessage", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    public static extern bool SendMessage(IntPtr hWnd, uint Msg, int wParam, StringBuilder lParam);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SendMessage(int hWnd, int Msg, int wparam, int lparam);
+
+    [DllImport("user32.dll")]
+    public static extern void SwitchToThisWindow(IntPtr hWnd);
+
+    const int WM_GETTEXT       = 0x000D;
+    const int WM_GETTEXTLENGTH = 0x000E;
+
+    // --------------------------------------------------------------------------------
+    // --- Helper for enumerating window handles under a process
+    // --------------------------------------------------------------------------------
+    static IEnumerable<IntPtr> EnumerateProcessWindowHandles(int processId)
+    {
+	var handles = new List<IntPtr>();
+
+	foreach (ProcessThread thread in Process.GetProcessById(processId).Threads)
+	{
+	    EnumThreadWindows(thread.Id,
+			      (hWnd, lParam) => { handles.Add(hWnd); return true; }, IntPtr.Zero);
+	}
+
+	return handles;
+    }
 
     // --------------------------------------------------------------------------------
     // --- Switch to Window
     // --------------------------------------------------------------------------------
-    //dll import (can't be in method, but needs to be in class
-    [DllImport("user32.dll")]
-        public static extern void SwitchToThisWindow(IntPtr hWnd);
-
     public static int SwitchToWindow(string procName){
-        // Getting window matching 
+        // Getting window matching
         Process[] procs = Process.GetProcessesByName(procName);
         int nProcs = procs.Length;
         if (nProcs < 1) {
@@ -23,21 +54,21 @@ public class wmctrl
             // We'll use the first window we found
             Process proc=procs[0];
             if (nProcs >1) {
-                Console.WriteLine("{0} processes found with name: {1}",nProcs,procName);
+                Console.WriteLine("{0} processes found with name: {1}", nProcs,procName);
                 Console.WriteLine("Using first process:");
                 Console.WriteLine("Process Name: {0} ID: {1} Title: {2}", proc.ProcessName, proc.Id, proc.MainWindowTitle);
             }
+
             // --- Switching to window using user32.dll function
             SwitchToThisWindow(proc.MainWindowHandle);
             return 0;
         }
     }
 
-    
     // --------------------------------------------------------------------------------
-    // --- List Windows info
+    // --- List Processes info
     // --------------------------------------------------------------------------------
-    public static int ListWindows(){
+    public static int ListProcesses(){
         Process[] processlist = Process.GetProcesses();
         Console.WriteLine("ID: \t Name:\t Title:");
         Console.WriteLine("-------------------------------------------------");
@@ -52,7 +83,41 @@ public class wmctrl
     }
 
     // --------------------------------------------------------------------------------
-    // --- Print command usage 
+    // --- List Windows info
+    // --------------------------------------------------------------------------------
+    public static int ListWindows(string procName){
+	// Getting window matching
+        Process[] procs = Process.GetProcessesByName(procName);
+        int nProcs = procs.Length;
+        if (nProcs < 1) {
+            Console.WriteLine("Error: No process found for name: {0}", procName);
+            return -1 ;
+        }else{
+	    foreach (var proc in procs)
+	    {
+                Console.WriteLine("Process Name: {0} ID: {1} Title: {2}", proc.ProcessName, proc.Id, proc.MainWindowTitle);
+
+		foreach (var handle in EnumerateProcessWindowHandles(proc.Id))
+		{
+		    StringBuilder message = new StringBuilder(1000);
+		    SendMessage(handle, WM_GETTEXT, message.Capacity, message);
+		    if (string.IsNullOrWhiteSpace(message.ToString()))
+		    {
+			Console.WriteLine("---");
+		    }else{
+			Console.WriteLine(message);
+		    }
+		    Console.WriteLine("    {0}", handle);
+		}
+
+		Console.WriteLine("");
+	    }
+            return 0;
+        }
+    }
+
+    // --------------------------------------------------------------------------------
+    // --- Print command usage
     // --------------------------------------------------------------------------------
     public static void print_usage(){
         Console.WriteLine("");
@@ -60,21 +125,21 @@ public class wmctrl
         Console.WriteLine("");
         Console.WriteLine("options:");
         Console.WriteLine("  -h         : show this help");
-        Console.WriteLine("  -l         : list windows");
+        Console.WriteLine("  -l <opt:PNAME> : list processes, or windows if a process name is given");
         Console.WriteLine("  -a <PNAME> : switch to the window of the process name <PNAME>");
         Console.WriteLine("");
-    
+
     }
 
     // --------------------------------------------------------------------------------
-    // --- Main Program 
+    // --- Main Program
     // --------------------------------------------------------------------------------
     public static int Main(string[] args)
     {
         int status=0; // Return status for Main
 
         // --------------------------------------------------------------------------------
-        // --- Parsing arguments 
+        // --- Parsing arguments
         // --------------------------------------------------------------------------------
         int nArgs=args.Length;
         if (nArgs==0){
@@ -92,15 +157,27 @@ public class wmctrl
                     break;
                 case "-a": // Switch to Window
                     if (i+1<nArgs) {
-                        status=SwitchToWindow(args[i+1]);
+			Int64 hWnd;
+			bool isNumeric = Int64.TryParse(args[i+1], out hWnd);
+			if (isNumeric)
+			{
+			    SwitchToThisWindow(new IntPtr(hWnd));
+			}else{
+			    status=SwitchToWindow(args[i+1]);
+			}
                         i=i+2;
                     }else{
                         Console.WriteLine("Error: command line option -a needs to be followed by a process name.");
                         status=-1;
                     }
                     break;
-                case "-l": // List Windows
-                    status=ListWindows();
+                case "-l": // List Processes/Windows
+		    if (i+1<nArgs) {
+			status=ListWindows(args[i+1]);
+			i=i+2;
+		    }else{
+			status=ListProcesses();
+		    }
                     i++;
                     break;
                 default:
