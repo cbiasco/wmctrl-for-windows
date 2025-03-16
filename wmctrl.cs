@@ -155,22 +155,34 @@ public class wmctrl
                     print_usage();
                     i=i+1;
                     break;
-                case "-a": // Switch to Window
+                case "-a": // Switch to Window via name
                     if (i+1<nArgs) {
-			Int64 hWnd;
-			bool isNumeric = Int64.TryParse(args[i+1], out hWnd);
-			if (isNumeric)
-			{
-			    SwitchToThisWindow(new IntPtr(hWnd));
-			}else{
-			    status=SwitchToWindow(args[i+1]);
-			}
+			status=SwitchToWindow(args[i+1]);
                         i=i+2;
                     }else{
                         Console.WriteLine("Error: command line option -a needs to be followed by a process name.");
                         status=-1;
                     }
                     break;
+		case "-ia": // Switch to Window via PID
+		case "-ai":
+		    if (i+1<nArgs) {
+			Int64 hWnd;
+			bool isNumeric = Int64.TryParse(args[i+1], out hWnd);
+			if (isNumeric)
+			{
+			    SwitchToThisWindow(new IntPtr(hWnd));
+			    status=0;
+			}else{
+			    Console.WriteLine("Error: command line option -i needs to be followed by a process number.");
+			    status=-1;
+			}
+                        i=i+2;
+                    }else{
+                        Console.WriteLine("Error: command line option -i needs to be followed by a process name.");
+                        status=-1;
+                    }
+		    break;
                 case "-l": // List Processes/Windows
 		    if (i+1<nArgs) {
 			status=ListWindows(args[i+1]);
